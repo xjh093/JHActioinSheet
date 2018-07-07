@@ -29,7 +29,10 @@
 
 #import "JHActionSheetViewController.h"
 
-//#import "UIButton+WebCache.h"
+#define kJH_USE_SD 0
+#if kJH_USE_SD
+#import "UIButton+WebCache.h"
+#endif
 
 @implementation JHActionSheetTitleConfig
 
@@ -53,60 +56,12 @@
 
 @property (nonatomic,  strong) NSMutableArray     *buttonsArray;
 @property (nonatomic,    weak) UIViewController   *vc;
+@property (nonatomic,  assign) NSInteger           visiableRows;
 
 @end
 
 @implementation JHActionSheetViewController
 
-- (instancetype)init
-{
-    if (self = [super init]) {
-        
-#if 0
-        UIViewController *vc = [self jhGetViewControllerOnScreen];
-        
-        // 1.开启上下文
-        UIGraphicsBeginImageContextWithOptions(vc.view.frame.size, NO, 0.0);
-        
-        // 2.将控制器view的layer渲染到上下文
-        [vc.view.layer renderInContext:UIGraphicsGetCurrentContext()];
-        
-        // 3.取出图片
-        UIImage *newImage = UIGraphicsGetImageFromCurrentImageContext();
-        
-        // 4.结束上下文
-        UIGraphicsEndImageContext();
-        
-        // 5.设置view的背景
-        self.view.layer.contents = (id)newImage.CGImage;
-#endif
-    }
-    return self;
-}
-
-- (UIViewController *)jhGetViewControllerOnScreen
-{
-    UIWindow *window = [UIApplication sharedApplication].keyWindow;
-    
-    if (window.windowLevel != UIWindowLevelNormal) {
-        NSArray *windows = [UIApplication sharedApplication].windows;
-        for (UIWindow *twindow in windows) {
-            if (twindow.windowLevel == UIWindowLevelNormal) {
-                window = twindow;
-                break;
-            }
-        }
-    }
-    
-    UIView *frontView = [[window subviews] objectAtIndex:0];
-    id nextResponder = [frontView nextResponder];
-    
-    if ([nextResponder isKindOfClass:[UIViewController class]]) {
-        return nextResponder;
-    }
-    
-    return window.rootViewController;
-}
 
 - (instancetype)initWithMenus:(NSArray *)menus
 {
@@ -128,6 +83,22 @@
         _menus = menus;
         _height1 = height1 < 30 ? 30 : height1;
         _height2 = height2 < 30 ? 30 : height2;
+        _buttonsArray = @[].mutableCopy;
+        [self jhSetupViews];
+    }
+    return self;
+}
+
+- (instancetype)initWithMenus:(NSArray *)menus
+                menuRowHeight:(CGFloat)height1
+              cancelRowHeight:(CGFloat)height2
+                 visiableRows:(NSInteger)row
+{
+    if (self = [super init]) {
+        _menus = menus;
+        _height1 = height1 < 30 ? 30 : height1;
+        _height2 = height2 < 30 ? 30 : height2;
+        _visiableRows = row;
         _buttonsArray = @[].mutableCopy;
         [self jhSetupViews];
     }
@@ -198,15 +169,38 @@
     CGFloat H  = CGRectGetHeight([UIScreen mainScreen].bounds);
     CGFloat W  = CGRectGetWidth([UIScreen mainScreen].bounds);
     CGFloat xH = H1*count + 10 + H2;
-    CGFloat vH = xH > H*0.5 ? H*0.5: xH;
+    CGFloat vH = xH > H*0.5 ? H*0.5: xH; // whole menu view Height.
+    
+    // normal height, half [UIScreen mainScreen].bounds.size.height
     CGRect  vframe = CGRectMake(0, H, W, vH);
     
+    //
+    CGFloat scrollViewH = vH-10-H2;
+    if (_visiableRows > 0) {
+        NSInteger t_count = _visiableRows;
+        if (_visiableRows > count) { // visiable rows more than menu count
+            t_count = count;
+        }
+        
+        scrollViewH = t_count * H1;
+        vH = scrollViewH + 10 + H2;
+        if (vH >= H*0.5) {
+            t_count = H*0.5/H1;
+            scrollViewH = t_count * H1;
+            vH = scrollViewH + 10 + H2;
+        }
+        vframe = CGRectMake(0, H, W, vH);
+    }
+    
+    
+    
+    // menuView 
     UIView *view = [[UIView alloc] init];
     view.frame = vframe;
     view.backgroundColor = [UIColor colorWithRed:236.0/255 green:236.0/255 blue:243.0/255 alpha:1];
     
     UIScrollView *scrollView = [[UIScrollView alloc] init];
-    scrollView.frame = CGRectMake(0, 0, W, vH-10-H2);
+    scrollView.frame = CGRectMake(0, 0, W, scrollViewH);
     scrollView.contentSize = CGSizeMake(W, H1*count);
     scrollView.showsVerticalScrollIndicator = NO;
     [view addSubview:scrollView];
@@ -260,7 +254,9 @@
     button.titleLabel.font = [UIFont systemFontOfSize:15];
     button.imageEdgeInsets = UIEdgeInsetsMake(0, 0, 0, 5);
     if ([image hasPrefix:@"http"]) {
-        //[button sd_setImageWithURL:[NSURL URLWithString:image] forState:0 placeholderImage:[UIImage imageNamed:@""]];
+#if kJH_USE_SD
+        [button sd_setImageWithURL:[NSURL URLWithString:image] forState:0 placeholderImage:[UIImage imageNamed:@""]];
+#endif
     }else{
         if ([image isKindOfClass:[NSString class]] && (image.length > 0)) {
             [button setImage:[UIImage imageNamed:image] forState:0];
@@ -328,11 +324,47 @@
         JHActionSheetTitleConfig *config = titleConfig[i];
         UIButton *button = _buttonsArray[i];
         
-        [button setTitleColor:config.color forState:0];
-        [button setTitleColor:config.highlightedColor forState:1];
-        button.titleLabel.font = config.font;
+        if (config.color) {
+            [button setTitleColor:config.color forState:0];
+        }
+        if (config.highlightedColor) {
+            [button setTitleColor:config.highlightedColor forState:1];
+        }
+        if (config.font) {
+            button.titleLabel.font = config.font;
+        }
         button.userInteractionEnabled = config.enable;
     }
 }
+
+- (void)setAllMenuTitleConfig:(JHActionSheetTitleConfig *)allMenuTitleConfig{
+    _allMenuTitleConfig = allMenuTitleConfig;
+    
+    [self jhTitleconfigFrom:0 to:_buttonsArray.count-1 config:allMenuTitleConfig];
+}
+
+- (void)setCancelTitleConfig:(JHActionSheetTitleConfig *)cancelTitleConfig{
+    _cancelTitleConfig = cancelTitleConfig;
+    
+    [self jhTitleconfigFrom:_buttonsArray.count-1 to:_buttonsArray.count config:cancelTitleConfig];
+}
+
+- (void)jhTitleconfigFrom:(NSInteger)start to:(NSInteger)end config:(JHActionSheetTitleConfig *)config{
+    for (NSInteger i = start; i < end; ++i) {
+        UIButton *button = _buttonsArray[i];
+        
+        if (config.color) {
+            [button setTitleColor:config.color forState:0];
+        }
+        if (config.highlightedColor) {
+            [button setTitleColor:config.highlightedColor forState:1];
+        }
+        if (config.font) {
+            button.titleLabel.font = config.font;
+        }
+        button.userInteractionEnabled = config.enable;
+    }
+}
+
 
 @end

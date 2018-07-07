@@ -61,13 +61,23 @@ typedef void(^JHClickBlock)(NSInteger index,NSString *title);
 
 @property (nonatomic,  strong) NSArray <JHActionSheetTitleConfig *>*titleConfig;
 
-/// menus types : 1. @[@"title1",@"title2"...] 2. @[@[@"image1",title1],@[@"image2",@"title2"]...]
+@property (nonatomic,  strong) JHActionSheetTitleConfig *allMenuTitleConfig;
+
+@property (nonatomic,  strong) JHActionSheetTitleConfig *cancelTitleConfig;
+
+/// menus types : 1. @[@"title1",@"title2"...] 2. @[@[@"image1",@"title1"],@[@"image2",@"title2"]...]
 - (instancetype)initWithMenus:(NSArray *)menus;
 
-/// menus types : 1. @[@"title1",@"title2"...] 2. @[@[@"image1",title1],@[@"image2",@"title2"]...]
+/// menus types : 1. @[@"title1",@"title2"...] 2. @[@[@"image1",@"title1"],@[@"image2",@"title2"]...]
 - (instancetype)initWithMenus:(NSArray *)menus
                 menuRowHeight:(CGFloat)height1
               cancelRowHeight:(CGFloat)height2;
+
+/// menus types : 1. @[@"title1",@"title2"...] 2. @[@[@"image1",@"title1"],@[@"image2",@"title2"]...]
+- (instancetype)initWithMenus:(NSArray *)menus
+                menuRowHeight:(CGFloat)height1
+              cancelRowHeight:(CGFloat)height2
+                 visiableRows:(NSInteger)row;
 
 - (void)showIn:(UIViewController *)vc;
 
